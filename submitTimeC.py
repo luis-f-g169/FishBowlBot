@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 
 BASE_URL = "https://schedule.lib.calpoly.edu"
 
-PREFERRED_ROOMS = ["216K", "216L", "216M", "216N", "216P", "216Q", "216R", "216S", "224"]
-TARGET_START = "12:00pm"
-TARGET_END = "1:00pm"
+PREFERRED_ROOMS = ["216Q", "216L", "216K", "216M", "216N", "216P", "216R", "216S", "224"]
+
+# Set to a day number string like "24" to override the auto date, or None to use today+6
+TEST_DATE = None
 
 
 def load_people_from_csv(path="emails.csv"):
@@ -129,11 +130,12 @@ def choose_room_and_submit(page, booking):
         print("Room not found on page.")
         return False
 
-    # Filter available slots by start time in title/aria-label to avoid booking the wrong time slot
+    # Filter available slots by BOTH room name and start time in title/aria-label
     slot = page.locator(
         f"xpath=//*[contains(normalize-space(), '{room_name}')]/ancestor::tr[1]//*["
         f"(contains(@class,'s-lc-eq-avail') or contains(@class,'available') or contains(@title,'Available'))"
-        f" and (contains(@title, '{target_start}') or contains(@aria-label, '{target_start}'))]"
+        f" and (contains(@title, '{target_start}') or contains(@aria-label, '{target_start}'))"
+        f" and (contains(@title, '{room_name}') or contains(@aria-label, '{room_name}'))]"
     ).first
 
     print("Matching slot count (time-filtered):", slot.count())
@@ -148,12 +150,13 @@ def choose_room_and_submit(page, booking):
         for i in range(min(all_slots.count(), 5)):
             print(f"  slot[{i}] title='{all_slots.nth(i).get_attribute('title')}' aria-label='{all_slots.nth(i).get_attribute('aria-label')}'")
 
-        # Try a looser time match (just the hour, e.g. "12pm")
+        # Try a looser time match (just the hour, e.g. "12pm") but still pin to room name
         loose_time = target_start.replace(":00", "")
         slot = page.locator(
             f"xpath=//*[contains(normalize-space(), '{room_name}')]/ancestor::tr[1]//*["
             f"(contains(@class,'s-lc-eq-avail') or contains(@class,'available') or contains(@title,'Available'))"
-            f" and (contains(@title, '{loose_time}') or contains(@aria-label, '{loose_time}'))]"
+            f" and (contains(@title, '{loose_time}') or contains(@aria-label, '{loose_time}'))"
+            f" and (contains(@title, '{room_name}') or contains(@aria-label, '{room_name}'))]"
         ).first
 
         print(f"Loose match ({loose_time}) slot count:", slot.count())
@@ -251,15 +254,15 @@ def set_end_time_and_continue(page, person, target_end="1:00pm"):
 # Hours the library is open per weekday (0=Mon, 6=Sun)
 HOURS_BY_WEEKDAY = {
     0: [
-        ("8:00am", "9:00am"),
-        ("9:00am", "10:00am"),
-        ("10:00am", "11:00am"),
-        ("11:00am", "12:00pm"),
         ("12:00pm", "1:00pm"),
         ("1:00pm", "2:00pm"),
+        ("11:00am", "12:00pm"),
         ("2:00pm", "3:00pm"),
+        ("10:00am", "11:00am"),
         ("3:00pm", "4:00pm"),
+        ("9:00am", "10:00am"),
         ("4:00pm", "5:00pm"),
+        ("8:00am", "9:00am"),
         ("5:00pm", "6:00pm"),
         ("6:00pm", "7:00pm"),
         ("7:00pm", "8:00pm"),
@@ -344,7 +347,7 @@ HOURS_BY_WEEKDAY = {
 
 def get_target_date():
     """Bookings open at midnight for the date 6 days from now."""
-    target = datetime.now() + timedelta(days=6)
+    target = datetime.now() + timedelta(days=7)
     return target
 
 
@@ -352,8 +355,9 @@ def get_time_slots():
     target = get_target_date()
     weekday = target.weekday()  # 0=Mon, 6=Sun
     slots = HOURS_BY_WEEKDAY.get(weekday, [])
-    print(f"Target date: {target.strftime('%A, %B %d, %Y')} — {len(slots)} slots available")
-    return slots, str(target.day)
+    day = TEST_DATE if TEST_DATE else str(target.day)
+    print(f"Target date: {target.strftime('%A, %B %d, %Y')} (day={day}) — {len(slots)} slots available")
+    return slots, day
 
 
 def click_make_another_booking(page):
