@@ -2,7 +2,9 @@ from playwright.sync_api import sync_playwright
 from bot import watch_for_room
 import time
 import csv
-import re
+import requests
+import os
+import json
 from datetime import datetime, timedelta
 
 BASE_URL = "https://schedule.lib.calpoly.edu"
@@ -11,6 +13,34 @@ PREFERRED_ROOMS = ["216Q", "216L", "216K", "216M", "216N", "216P", "216R", "216S
 
 # Set to a day number string like "24" to override the auto date, or None to use today+6
 TEST_DATE = None
+
+
+def send_log_and_cleanup(log_path="booking_log.txt", master_path="all_bookings.json"):
+    with open(log_path, "r") as f:
+        log_content = f.read()
+
+    webhook_url = os.environ["SLACK_WEBHOOK_URL"]
+    target = get_target_date()
+    date_key = target.strftime("%Y-%m-%d")
+
+    try:
+        with open(master_path, "r") as f:
+            all_bookings = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        all_bookings = {}
+
+    # Add today's booking
+    all_bookings[date_key] = log_content
+
+    # Only keep the next 8 days worth, drop anything older than today
+    today = datetime.now().date()
+    all_bookings = {k: v for k, v in all_bookings.items() if datetime.strptime(k, "%Y-%m-%d").date() >= today}
+
+    with open(master_path, "w") as f:
+        json.dump(all_bookings, f, indent=2)
+
+    requests.post(webhook_url, json={"text": f"📚 *Fishbowl Bookings for {date_key}*\n```{log_content}```"})
+    os.remove(log_path)
 
 
 def load_people_from_csv(path="emails.csv"):
@@ -459,6 +489,8 @@ def run():
             f.write("\n".join(lines))
 
         browser.close()
+    # Sends to slack channel
+    send_log_and_cleanup()
 
 
 if __name__ == "__main__":
