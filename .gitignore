@@ -1,0 +1,7 @@
+venv/
+nohup.out
+run.log
+all_bookings.json
+__pycache__/
+*.pyc
+emails.csv
