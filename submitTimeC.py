@@ -83,11 +83,25 @@ def dismiss_chat_widget(page):
         pass
 
 
-def go_to_date(page, day_text="24"):
+def go_to_date(page, day_text, target_month=None):
+    """target_month: a datetime whose .month/.year we want to land on."""
     print(f"Opening date picker and selecting day {day_text}...")
 
     page.locator("button.fc-goToDate-button").click(force=True)
     page.wait_for_timeout(1000)
+
+    if target_month:
+        # Advance the datepicker until we're on the right month/year
+        for _ in range(3):  # safety limit
+            header = page.locator(".datepicker-switch").first.inner_text()
+            # header is e.g. "May 2026"
+            from datetime import datetime as dt
+
+            shown = dt.strptime(header.strip(), "%B %Y")
+            if shown.month == target_month.month and shown.year == target_month.year:
+                break
+            page.locator(".next").first.click()
+            page.wait_for_timeout(400)
 
     day = page.locator("td.day:not(.old):not(.new)", has_text=day_text).first
 
@@ -376,7 +390,7 @@ HOURS_BY_WEEKDAY = {
 
 
 def get_target_date():
-    """Bookings open at midnight for the date 6 days from now."""
+    """Bookings open at midnight for the date 7 days from now."""
     target = datetime.now() + timedelta(days=7)
     return target
 
@@ -428,7 +442,8 @@ def run():
             pass
 
         page.wait_for_load_state("networkidle")
-        go_to_date(page, TARGET_DAY)
+        target = get_target_date()
+        go_to_date(page, TARGET_DAY, target_month=target)
         dismiss_modal(page)
 
         # ── Loop: one booking per (person, time slot) pair ─────────────────
@@ -466,7 +481,7 @@ def run():
                 more_people = i < len(people) - 1
                 if more_slots and more_people:
                     click_make_another_booking(page)  # button is right there on confirmation page
-                    go_to_date(page, TARGET_DAY)
+                    go_to_date(page, TARGET_DAY, target_month=target)
                     dismiss_modal(page)
             else:
                 print(f"✗ No rooms available for {start}-{end} — all preferred rooms taken.")
@@ -482,7 +497,6 @@ def run():
             lines.append(line)
 
         # Write log file for GitHub Actions artifact upload
-        target = get_target_date()
         with open("booking_log.txt", "w") as f:
             f.write(f"Run: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Target: {target.strftime('%A, %B %d, %Y')}\n\n")
