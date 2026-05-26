@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 BASE_URL = "https://schedule.lib.calpoly.edu"
 
-PREFERRED_ROOMS = ["216Q", "216L", "216K", "216M", "216N", "216P", "216R", "216S", "224"]
+PREFERRED_ROOMS = ["216R", "216Q", "216K", "216M", "216N", "216P", "216L", "216S", "224"]
 
 # Set to a day number string like "24" to override the auto date, or None to use today+6
 TEST_DATE = None
