@@ -1,5 +1,4 @@
 from playwright.sync_api import sync_playwright
-from bot import watch_for_room
 import time
 import csv
 import requests
